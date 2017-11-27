@@ -31,7 +31,7 @@ typedef struct inode
 	char * buffer;
 	int linkcount;
 	int referancecount;
-	int permissions;
+	int permission;
 	struct inode * next;
 }INODE,*PINODE;
 
@@ -42,7 +42,7 @@ typedef struct filetable
 	int writeoffset;
 	int count;
 	int mode;
-	PINODE * ptrinode;
+	PINODE  ptrinode;
 }FILETABLE,*PFILETABLE;
 
 
@@ -187,6 +187,26 @@ void create_dilb()
 
 }
 
+PINODE getinode(char * name)
+{
+	PINODE temp= head;
+	if(name ==NULL || SUPERBLOCKobj.freeinode==MAXINODE)
+	{
+			return NULL;
+	}
+
+	while(temp!=NULL)
+	{
+		if(strcmp(name,temp->filename)==0)
+		{
+			break;
+		}
+		temp = temp->next;
+	}
+return temp;
+}
+
+
 int createfile(char * name, int permission)
 {
 	int i=0;
@@ -224,7 +244,7 @@ int createfile(char * name, int permission)
 	}
 
 	UFDTarr[i].ptrfiletable=(PFILETABLE)malloc(sizeof(FILETABLE));
-	if(UFDTarr[i].ptrfiletable=NULL)
+	if(UFDTarr[i].ptrfiletable==NULL)
 	{
 		return -4;
 	}
@@ -237,7 +257,6 @@ int createfile(char * name, int permission)
 	UFDTarr[i].ptrfiletable->ptrinode =temp;
 	
 	strcpy(UFDTarr[i].ptrfiletable->ptrinode->filename,name);
-	UFDTarr[i].ptrfiletable->ptrinode->inodenumber
 	UFDTarr[i].ptrfiletable->ptrinode->referancecount =1;
 	UFDTarr[i].ptrfiletable->ptrinode->linkcount =1;
 	UFDTarr[i].ptrfiletable->ptrinode->filetype=REGULAR;
@@ -246,7 +265,7 @@ int createfile(char * name, int permission)
 	UFDTarr[i].ptrfiletable->ptrinode->permission =permission;
 	UFDTarr[i].ptrfiletable->ptrinode->buffer =(char*)malloc(MAXFILESIZE);
 	
-	memset(	UFDTarr[i].ptrfiletable->buffer,0,1024);	
+	memset(	UFDTarr[i].ptrfiletable->ptrinode->buffer,0,1024);	
 
 	return i;
 }
