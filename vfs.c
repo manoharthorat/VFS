@@ -2,8 +2,8 @@
 #define READ 1
 #define WRITE 2
 #define MAXFILESIZE 1024
-#define START 0
 #define REGULAR 1
+#define START 0
 #define CURRENT 1
 #define END 2
 
@@ -206,6 +206,29 @@ PINODE getinode(char * name)
 return temp;
 }
 
+int get_file_descriptor_from_name(char * name)
+{
+	int i=0;
+	while(i<50)
+	{
+		if(UFDTarr[i].ptrfiletable!=NULL)
+		{
+			if((strcmp(UFDTarr[i]->ptrfiletable->ptrinode->filename),name)==0)
+			{
+				break;
+			}
+		}
+		i++;
+	}
+	if(i==50)
+	{
+		return -1;
+	}
+	else
+	{
+		return i;
+	}
+}
 
 int createfile(char * name, int permission)
 {
@@ -270,6 +293,116 @@ int createfile(char * name, int permission)
 	return i;
 }
 
+int openfile(char * name, int mode)
+{
+	int i=0;
+	PINODE temp =NULL;
+	if(name ==NULL || mode <= 0 || mode > 3)
+		return -1;
+	
+	temp =getinode(name);
+
+	if(temp==NULL)
+		return -2;
+	if(temp->permission < mode )
+		return -3;
+	while(i<50)
+	{
+		if(UFDTarr[i].ptrfiletable==NULL)
+			break;
+		i++;
+	}
+	if(i==50)
+		return -4;
+	
+	UFDTarr[i].ptrfiletable=(PFILETABLE)malloc(sizeof(FILETABLE));
+
+	if(UFDTarr[i].ptrfiletable==NULL)
+		return -1;
+
+	UFDTarr[i].ptrfiletable->count=0;
+	UFDTarr[i].ptrfiletable->mode=mode;
+	
+	if(mode == READ+WRITE)
+	{
+		UFDTarr[i].ptrfiletable->readoffset=0;
+		UFDTarr[i].ptrfiletable->writeoffset=0;
+	}
+	else if(mode == READ)
+	{
+		UFDTarr[i].ptrfiletable->readoffset=0;
+	}
+	else if(mode == WRITE)
+	{
+		UFDTarr[i].ptrfiletable->writeoffset=0;
+	}
+	
+	UFDTarr[i].ptrfiletable->ptrinode=temp;
+	(UFDTarr[i].ptrfiletable->ptrinode->referancecount)++;
+
+	return i;
+}
+
+int readfile(int fd,char * arr, int size)
+{
+	int read_size=0;
+	if(UFDTarr[i].ptrfiletable==NULL)
+	{
+		return -1;
+	}
+	if(UFDTarr[i].ptrfiletable->mode != READ && UFDTarr[i].ptrfiletable->mode!= READ+WRITE)
+	{
+		return -2;
+	}
+	if(UFDTarr[i].ptrfiletable->ptrinode->permission != READ && UFDTarr[i].ptrfiletable->ptrinode->permission != READ+WIRTE)
+	{
+		return -2;
+	}
+	if(UFDTarr[fd].ptrfiletable->readoffset==UFDTarr[fd].ptrfiletable->ptrinode->fileactualsize)
+	{
+		return -3;
+	}
+	if(UFDTarr[i].ptrfiletable->ptrinode->filetype!=REGULAR)
+	{
+		return -4;
+	}
+
+	read_size= (UFDTarr[fd].ptrfiletable->ptrinode->fileactualsize)-(UFDTarr[fd].ptrfiletable->readoffset);
+
+	if(read_size < size)
+	{
+		strncpy(arr,(UFDTarr[fd].ptrfiletable->ptrinode->buffer)+(UFDTarr[fd].ptrfiletable->readoffset),read_size);
+		(UFDTarr[fd].ptrfiletable->readoffset)=(UFDTarr[fd].ptrfiletable->readoffset+read_size);
+	}
+	else
+	{
+		strncpy(arr,(UFDTarr[fd].ptrfiletable->ptrinode->buffer)+(UFDTarr[fd].ptrfiletable->readoffset),size);
+		(UFDTarr[fd].ptrfiletable->readoffset)=(UFDTarr[fd].ptrfiletable->readoffset+size);	
+	}
+	return size;
+		
+}
+
+int writefile(int fd, char * arr, int size)
+{
+	if(UFDTarr[i].ptrfiletable->mode != READ && UFDTarr[i].ptrfiletable->mode!= READ+WRITE)
+	{
+		return -2;
+	}
+	if(UFDTarr[i].ptrfiletable->ptrinode->permission != READ && UFDTarr[i].ptrfiletable->ptrinode->permission != READ+WIRTE)
+	{
+		return -2;
+	}
+	if((UFDTarr[fd].ptrfiletable->writeoffset)==MAXFILESIZE)
+	{	
+		return -2;	
+	}
+	if(UFDTarr[fd].ptrfiletable->ptrinode->filetype!=REGULAR)
+	{
+		return -3;
+	}
+		
+}
 int main()
 {
 	char * ptr=NULL;
@@ -281,10 +414,10 @@ int main()
 	while(1)
 	{
 		strcpy(str,"");
-		printf("\nVirtual File System : \n");
+		printf("\nVirtual File System : ");
 		fgets(str,80,stdin);
 
-		count=sscanf(str,"%s%s%s%s",command[0],command[1],command[2],command[3]);
+		count=sscanf(str,"%s %s %s %s",command[0],command[1],command[2],command[3]);
 		if(count==1)
 		{
 			
@@ -298,30 +431,80 @@ int main()
 			if(strcmp(command[0],"create")==0)
 			{
 				ret=createfile(command[1],atoi(command[2]));
+				if(ret>=0)
+					printf("File is successfully created with the file descriptor : %d\n",ret);
+				if(ret==-1)
+					printf("Error : Incorrect Parameter\n");
+				if(ret==-2)
+					printf("Error : There is no Inodes\n");
+				if(ret==-3)
+					printf("Error : File Already Exists\n");
+				if(ret==-4)
+					printf("Error : Memory allocation failure\n");
+				continue;
 			}
-			else if(ret>=0)
+			else if(strcmp(command[0],"open")==0)
 			{
-				printf("File is successfully created with the file descriptor : %d\n",ret);
+				ret = openfile(command[1],atoi(command[2]));
+				if(ret>=0)
+					printf("File is successfully created with the file descriptor : %d\n",ret);
+				if(ret==-1)
+					printf("Error : Incorrect Parameter\n");
+				if(ret==-2)
+					printf("Error : File not present \n");
+				if(ret==-3)
+					printf("Error : Permission denied \n");
+				if(ret==-4)
+					printf("Error : Resources are finished \n");
+				continue;
+
 			}
-			else if(ret==-1)
+			else if(strcmp(command[0],"read")==0)
 			{
-				printf("Error : Incorrect Parameter\n");
+				fd = get_fd_from_name(command[1]);
+				if(fd ==-1)
+				{
+					printf("Error : Incorrect parameter \n");
+					continue ; 
+				}
+				ptr= (char * ) malloc(sizeof(atio(command[2]))+1);
+				if(ptr==NULL)
+				{
+					printf("Memory allocation failure \n");
+					continue;
+				}
+				ret = readfile(fd,ptr,atoi(command[2]));
+
+				if(ret ==-1)
+				{
+					printf("Error : file not exists \n");
+				}
+				if(ret ==-2)
+				{
+					printf("Error : permission denied \n");
+				}
+				if(ret ==-3)
+				{
+					printf("Error : reached at the end of the file  \n");
+				}
+				if(ret ==-4)
+				{
+					printf("Error : It is not a regular file \n");
+				}
+				if(ret ==0)
+				{
+					printf("file type is empty \n");
+				}
+				if(ret > 0)
+				{
+					write(1,ptr, ret);
+				}
+				continue;
 			}
-			else if(ret==-2)
+			else
 			{
-				printf("Error : There is no Inodes\n");
-			}
-			else if(ret==-3)
-			{
-				printf("Error : File Already Exists\n");
-			}
-			else if(ret==-4)
-			{
-				printf("Error : Memory allocation failure\n");
-			}
-			else 
-			{
-				printf("Unknown error\n");
+				printf("Command not found \n");
+				continue;
 			}
 		}
 	}
